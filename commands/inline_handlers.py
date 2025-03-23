@@ -3,7 +3,6 @@ import logging
 from aiogram import F, Router
 from aiogram.types import Message, CallbackQuery
 from data.redis_instance import __redis_room__, __redis_users__
-from data.middleware.db_middle import check_subscription
 
 logger = logging.getLogger(__name__)
 router = Router(__name__)
@@ -13,7 +12,7 @@ async def button_checker_subscriber(callback: CallbackQuery, data: dict):
     try:
         if data.get('is_subscribed', False):
             await callback.answer("✅ Вы подписаны!", show_alert=True)
-            await callback.message.bot.delete_message(
+            await callback.message.delete(
                 callback.message.chat.id,
                 callback.message.message_id,
             )

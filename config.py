@@ -1,6 +1,8 @@
 import logging
 from typing import Union
 from environs import Env
+from dotenv import load_dotenv
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +14,7 @@ def loadenvr(x: str, path: str | None = None) -> str:
     ADMIN_ID = env('ADMIN_ID')
     db_url = env('BD_URL_POSTGRES')
     bot_token = env('BOT_TOKEN')
+    bot_token_client = env('BOT_TOKEN_CLIENT')
     webhook_url = env('WEB_HOOK_URL')
     port = env("WEB_HOOK_PORT")
     host = env('WEB_HOOK_HOST')
@@ -26,6 +29,7 @@ def loadenvr(x: str, path: str | None = None) -> str:
         'host': host,
         'db_url': db_url,
         'channel_id': channel_id,
+        'bot_token_client': bot_token_client
     }
     if list_env:
         for keys in list_env.keys():

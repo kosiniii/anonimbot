@@ -118,7 +118,7 @@ class checkerChannelWare(BaseMiddleware):
                 data['is_subscribed'] = True
                 
                 text = event.text
-                if isinstance(event, Message) and text and text.startswith('/') or '/' in text:
+                if isinstance(event, Message) and text and text.startswith('/'):
                     data['saved_command'] = event.text
                 
                 sub_keyboard = InlineKeyboardMarkup(

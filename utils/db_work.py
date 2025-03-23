@@ -1,3 +1,4 @@
+import re
 from commands.message_bot import main_menu
 import asyncio
 from aiogram.types import Message
@@ -12,7 +13,8 @@ from data.redis_instance import __redis_room__, __redis_users__
 from utils.date_time_moscow import date_moscow
 from telethon_core.clients import multi
 from config import loadenvr
-from telethon.tl.functions.channels import EditAdminRequest, ChatAdminRights
+from telethon.tl.functions.channels import EditAdminRequest, ChatAdminRights, AddChatUserRequest
+from telethon import TelegramClient
 
 logger = logging.getLogger(__name__)
 set_users_active = set()
@@ -119,6 +121,7 @@ async def time_event_user(event) -> bool:
         return False
 
 async def find_func(message: Message, user_id: int, chat_id: int | None) -> bool | None:
+    global list_ids_message
     gett = __redis_users__.get_cashed()
     try:
         title = 'Anonim chat'
@@ -165,40 +168,85 @@ async def find_func(message: Message, user_id: int, chat_id: int | None) -> bool
         logger.error(f"Проблема в функции find_func {e}") 
         return False
 
-async def create_private_group():
-    client = await multi.get_client()
-    if not client:
-        logger.error("Не удалось получить клиент Telethon")
-        return   
+async def create_private_group() -> Any:
     try:
+        client = await multi.get_client()
+        if not client or not multi.bot_client:
+            logger.error("Не удалось получить клиент или бота Telethon")
+            return None
+
         group = await client.create_supergroup(
-                title="Анонимный чат",
-                about="Только по приглашению",
-                for_channel=True
-            )       
-        bot_username = (await client.get_me()).username
-        bot_token = l('bot_token')    
-        bot = await client.get_entity(f"@{bot_username}")
+            title="Анонимный чат",
+            about="Только по приглашению",
+            for_channel=True
+        )
+        logger.info(f'Группа создана с ID: {group.id}')
+
+        bot_id = await multi.bot_client.get_me()
+        await client.invoke(AddChatUserRequest(
+            chat_id=group.id,
+            user_id=bot_id.id,
+            fwd_limit=100
+        ))
         
-        await client(EditAdminRequest(
-            group,
-            bot,
-            admin_rights=ChatAdminRights(
-                add_admins=True,
-                delete_messages=True,
-                ban_users=True,
-                invite_users=True,
-                pin_messages=True,
-                manage_call=True
-            ),
-            rank="Bot Admin"
-        ))       
-        logger.info(f'Группа создана с ботом-администратором!\n ID: {group.id}')
-        return group
+        admin_rights = ChatAdminRights(
+            post_messages=True,
+            edit_messages=True,
+            delete_messages=True,
+            ban_users=True,
+            invite_users=True,
+            pin_messages=True,
+            add_admins=True,
+            anonymous=True,
+            manage_call=True,
+            other=True,
+            manage_topics=True,
+            change_info=True,
+            create_invite=True,
+            delete_chat=True,
+            manage_chat=True,
+            manage_video_chats=True,
+            can_manage_voice_chats=True,
+            can_manage_chat=True,
+            can_manage_channel=True
+        )
+        
+        pups = await client.invoke(EditAdminRequest(
+            channel=group,
+            user_id=bot_id.id,
+            admin_rights=admin_rights,
+            rank="Boss"
+        ))
+        
+        logger.info(f"Бот-администратор добавлен в группу {group.id} с правами администратора")   
+        if group and pups:
+            return group
+        else:
+            logger.error('Ошибка: функция create_private_group не вернула группу')
+            return None
         
     except Exception as e:
-        logger.error(f"Ошибка при создании группы: {e}")
-        return False
+        logger.error(f"Ошибка при создании группы или добавлении бота: {e}")
+        return None
 
+async def text_for_aiogram(message: Message, text: str, chat_id: int | None = None):
+    if chat_id:
+        await message.bot.send_message(chat_id=chat_id, text=text)
+    await message.answer(text=text)
+    return 
 
+async def delete_chat_after_timeout(chat_id: int, data_room: dict, client: TelegramClient):
+    try:
+        await asyncio.sleep(300)
+        
+        if len(data_room['users']) != 2:
+            if multi.bot_client:
+                await multi.bot_client.send_message(
+                    chat_id,
+                    '❌ Собеседник не присоединился за отведенное время, чат будет удален.'
+                )
+            await client.delete_dialog(chat_id)
+            logger.info(f"Чат {chat_id} удален из-за отсутствия второго участника")
+    except Exception as e:
+        logger.error(f"Ошибка при удалении чата после таймаута: {e}")
     
